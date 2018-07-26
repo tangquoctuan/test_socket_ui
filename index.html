@@ -1,0 +1,285 @@
+<html>
+<title>
+    Socket
+</title>
+
+<head>
+    <script src="./js/jquery.min.js"></script>
+    <script src="./js/socket.io.js"></script>
+
+    <script>
+        var channel_id = '4122b5d90e84ded281b670539164ace5';
+        var language_id = '00000008000000000000000000000001'; //default vi
+        var server = 'ws://dev-services-live-feed.dtube.vn:3000';
+        var server_text = 'QA';
+        var socket = io(localStorage.getItem('server'), {transports: ['websocket']});
+        var user_info = {};
+        var device_type = "web";
+        $(document).ready(function () {
+            $("input:text").focus(function () {
+                $(this).select();
+            });
+            var allcookies = localStorage.getItem('channel');
+            if (allcookies !== undefined && allcookies != null && allcookies !== '') {
+                var data = JSON.parse(allcookies);
+                channel_id = data.channel_id !== undefined && data.channel_id !== null && data.channel_id !== '' ? data.channel_id.toLowerCase() : channel_id;
+                language_id = data.language_id !== undefined && data.language_id !== null && data.language_id !== '' ? data.language_id : language_id;
+                server = data.server !== undefined && data.server !== null && data.server !== '' ? data.server : server;
+                server_text = data.server_text !== undefined && data.server_text !== null && data.server_text !== '' ? data.server_text : server_text;
+                device_type = data.device_type !== undefined && data.device_type !== null && data.device_type !== '' ? data.device_type : device_type;
+            }
+            $('#channel_id').html(channel_id);
+            document.getElementById("channel_id_txt").value = channel_id;
+            document.getElementById("device_type_txt").value = device_type;
+            $('#server-name').html(server_text + ' - ');
+
+            user_info = {
+                device_type: device_type,
+                content_size: "L",
+                avatar_size: "M",
+                channel_id: channel_id,
+                language_id: language_id
+            };
+            socket.emit("channel_id", user_info);
+            var element = document.getElementById('language');
+            element.value = language_id;
+            var element_server = document.getElementById('server');
+            element_server.value = server;
+        });
+
+        window.addEventListener("unload", function (e) {
+            end_session();
+        });
+
+        socket.on("receive_socket_id", function (data) {
+            $('#connected').append(data);
+        });
+
+        socket.on("receive_data", function (data) {
+            console.log(data);
+            var json = $.parseJSON(data);
+            console.log(json);
+            if (json.data.items.length > 0) {
+		var count =json.data.paging.total_count;
+                console.log(json.data.items);
+                $.each(json.data.items, function (index, item) {
+                    $('#data').append("<b>Livefeed: </b>" + item.title + "    -    " + count + '</br>');
+                });
+            }
+        });
+
+        socket.on("begin_send_data", function (data) {
+            $('#data').append(data + '</br>' + '====================================' + '</br>');
+        });
+
+        // socket.on("receive_data_error", function (data) {
+        //     if (data.error.length > 0) {
+        //         $('#error').append(data.error + '</br>' + '====================================' + '</br>');
+        //     }
+        // });
+
+        socket.on("confirmed", function (data) {
+            $('#status').append(data + '</br>');
+        });
+
+        socket.on("live_activities", function (data) {
+            console.log(data);
+            var data = JSON.parse(data);
+            $('#data').append("<b>Activities: </b>" + data.multiple_language[language_id].message + '</br>');
+        });
+
+        // socket.on("live_comment", function (data) {
+        //     console.log(data);
+        //     var data = JSON.parse(data);
+        //     $('#data').append("Comment: " + data.comment + '</br>');
+        // });
+
+        // socket.on("live_notification", function (data) {
+        //     console.log(data);
+        //     var data = JSON.parse(data);
+        //     $('#data').append('Notification: ' + data.message + '</br>');
+        // });
+
+        // socket.on("live_action_like", function (data) {
+        //     console.log(data);
+        //     var data = JSON.parse(data);
+        //     $('#data').append('Like: ' + data.type + '</br>');
+        // });
+
+        socket.on("live_notification_logs", function (data) {
+            console.log(data);
+            var data = JSON.parse(data);
+            $('#data').append('<b>Notifications Logs: </b>' + data.message + '</br>');
+        });
+
+        // socket.on("return_user_info", function (data) {
+        //     $('#status').append('Channel_id from couchbase: ' + data + '</br>');
+        // });
+
+        function set_channel_info() {
+            var channel = {
+                'channel_id': document.getElementById('channel_id_txt').value,
+                'language_id': language_id,
+                'server': server,
+                'server_text': server_text,
+                'device_type': document.getElementById('device_type_txt').value
+            };
+            localStorage.setItem('channel', JSON.stringify(channel));
+        }
+
+        function set_server() {
+            localStorage.setItem('server', server);
+        }
+
+        function get_selected_item(el) {
+            var e = document.getElementById(el);
+            var strSel = "The Value is: " + e.options[e.selectedIndex].value + " and text is: " + e.options[e.selectedIndex].text;
+            if (el === 'language') {
+                language_id = e.options[e.selectedIndex].value;
+            } else {
+                server = e.options[e.selectedIndex].value;
+                server_text = e.options[e.selectedIndex].text;
+            }
+            set_channel_info();
+            set_server();
+            window.location.reload();
+        }
+
+        function end_session() {
+            socket.emit("device_type", user_info.device_type);
+        }
+    </script>
+</head>
+<style>
+    body {
+        font-family: 'Open Sans', sans-serif;
+        background: #ededed;
+    }
+
+    input[type=text] {
+        padding: 12px 20px;
+        margin: 8px 0;
+        display: inline-block;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        width: 300px;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        font-size: 14px;
+    }
+
+    .button {
+        background-color: #5c9cd8;
+        border: none;
+        color: white;
+        padding: 11px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    #heading h1, h2 {
+        display: inline;
+    }
+
+    #language, #server {
+        background-color: #5c9cd8;
+        color: white;
+        font-size: 16px;
+        padding: 0px 29px 0px;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        box-sizing: border-box;
+        border: none;
+        min-height: 40px;
+        margin: 0;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    option:not(:checked) {
+        color: black;
+    }
+
+    #server {
+        margin-right: 10px;
+    }
+
+    .headerdivider {
+        border-left: 1px solid #e0e0e0;
+        background: #e0e0e0;
+        width: 1px;
+        height: 600px;
+        position: absolute;
+        right: 773px;
+        top: 163px;
+    }
+
+    /* Let's get this party started */
+    ::-webkit-scrollbar {
+        width: 3px;
+    }
+
+    /* Track */
+    ::-webkit-scrollbar-track {
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+    }
+
+    /* Handle */
+    ::-webkit-scrollbar-thumb {
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+        background: #fff;
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb:window-inactive {
+        background: #fff;
+    }
+</style>
+
+<body>
+<select id="server" onchange="get_selected_item('server')">
+    <option value="ws://127.0.0.1:3000">Local</option>
+    <option value="ws://qa-services-live-feed.dtube.vn">QA</option>
+    <option value="ws://testing-services-live-feed.vietube.vn">Staging</option>
+    <option value="wss://services-live-feed.dtube.vn">Production</option>
+</select>
+<h1 style="display: inline-block;">Test SocketIO Server - </h1>
+<h1 id="server-name" style="display: inline-block;color: darkgoldenrod"></h1>
+<h1 id="channel_id" style="display: inline-block;color: mediumslateblue"></h1>
+<div style="clear: both;"/>
+<input type="text" id="channel_id_txt"/>
+<input type="text" id="device_type_txt"/>
+<button type="button" class="button" id="set_channel" onclick="set_channel_info();window.location.reload();">Set
+</button>
+<select id="language" onchange="get_selected_item('language')">
+    <option value="00000008000000000000000000000001">VN</option>
+    <option value="00000008000000000000000000000002">US</option>
+</select>
+<br>
+<br>
+<span id="connected"></span>
+<br>
+<div style="width:49.5%;float:right;overflow-y:auto;height: 580px;">
+    <div style="padding-left: 10px">
+        <span id="data"></span>
+        <span id="error"></span>
+    </div>
+</div>
+<div class="headerDivider"></div>
+<div style="width:49.5%;float:left;overflow-y:auto;height: 580px;">
+    <span id="status"></span>
+</div>
+</body>
+
+</html>

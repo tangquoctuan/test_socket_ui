@@ -1,0 +1,392 @@
+<html>
+<title>
+    Socket
+</title>
+
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript" src="./node_modules/socketcluster-client/socketcluster.js"></script>
+
+    <script>
+        let channel_id = '';
+        let language_id = '00000008000000000000000000000001'; //default vi
+        let server = 'ws://qa-services-live-feed.dtube.vn:3000';
+        let server_text = 'QA';
+        // var socket = io(localStorage.getItem('server'), {transports: ['websocket']});
+        let user_info = {};
+        let device_type = "web";
+        let options = {
+            // hostname: "221.132.18.183",
+            // port: 15000
+            port: 3000
+        };
+        let socket_id = '';
+
+        // Initiate the connection to the server
+        let socket = socketCluster.connect(options);
+        let channel_private_channel = socket.subscribe("");
+        let chat_private_channel = socket.subscribe("");
+        let individual_channel = socket.subscribe("");
+        let key_connected = '';
+        socket.on('connect', function (data) {
+            if (data) {
+                socket_id = data.id;
+                $('#connected').html('CONNECTED WITH SOCKET_ID: ' + socket_id);
+            } else {
+                $('#connected').html("");
+            }
+        });
+        $(document).ready(function () {
+            $('#chat-form').hide();
+            $("input:text").focus(function () {
+                $(this).select();
+            });
+            // var allcookies = localStorage.getItem('channel');
+            // if (allcookies !== undefined && allcookies != null && allcookies !== '') {
+            //     var data = JSON.parse(allcookies);
+            //     channel_id = data.channel_id !== undefined && data.channel_id !== null && data.channel_id !== '' ? data.channel_id.toLowerCase() : channel_id;
+            //     language_id = data.language_id !== undefined && data.language_id !== null && data.language_id !== '' ? data.language_id : language_id;
+            //     server = data.server !== undefined && data.server !== null && data.server !== '' ? data.server : server;
+            //     server_text = data.server_text !== undefined && data.server_text !== null && data.server_text !== '' ? data.server_text : server_text;
+            //     device_type = data.device_type !== undefined && data.device_type !== null && data.device_type !== '' ? data.device_type : device_type;
+            // }
+            $('#channel_id').html(channel_id);
+            document.getElementById("channel_id_txt").value = channel_id;
+            document.getElementById("device_type_txt").value = device_type;
+            $('#server-name').html(server_text + ' - ');
+
+            user_info = {
+                device_type: device_type,
+                content_size: "L",
+                avatar_size: "M",
+                channel_id: channel_id,
+                language_id: language_id
+            };
+
+            let element = document.getElementById('language');
+            element.value = language_id;
+            let element_server = document.getElementById('server');
+            element_server.value = server;
+
+
+            $('#channel_name_txt').keyup(function (e) {
+                if (e.which === 13) {
+                    set_channel_info();
+                }
+            });
+
+            $('#message').keyup(function (e) {
+                if (e.which === 13) {
+                    send_message();
+                }
+            });
+
+            $('#listuser').on('click', 'li', function () {
+                let channel_id_li = $(this).attr('id');
+                let socket_id_li = $(this).attr('socket_id');
+                if (channel_id_li && socket_id && channel_id_li !== channel_id) {
+                    $('#chat-form').show();
+                    let private_channel = channel_id + "_" + channel_id_li;
+                    let data = {
+                        private_channel: private_channel,
+                        current_channel_id: channel_id,
+                        connect_channel_id: channel_id_li,
+                        socket_id: socket_id_li
+                    };
+                    socket.emit("need_connected", data);
+                    key_connected = private_channel;
+                    $('#message_content').attr("user_id", channel_id);
+                } else {
+                    $('#message_content').html('');
+                    $('#message').html('');
+                    $('#chat-form').hide();
+                }
+            });
+        });
+
+        window.addEventListener("unload", function (e) {
+            end_session();
+        });
+
+
+        socket.on("begin_send_data", function (data) {
+            $('#data').append(data + '</br>' + '====================================' + '</br>');
+        });
+
+        socket.on("confirmed", function (data) {
+            $('#status').append(data + '</br>');
+        });
+
+        let pongChannel = socket.subscribe('live_activities');
+        let online_channels = socket.subscribe('onlines');
+
+        pongChannel.watch(function (data) {
+            let data = JSON.parse(data);
+            $('#data').append("<b>Activities: </b>" + data.multiple_language[language_id].message + '</br>');
+        });
+
+        online_channels.watch(function (data) {
+            if (data && data.length > 0) {
+                $('#listuser').html("");
+                data.forEach(user => {
+                    const channel_id = user.id;
+                    const channel_name = user.name;
+                    const socket_id = user.socket_id;
+                    $('#listuser').append(`<li socket_id='${socket_id}' id='${channel_id}' style="cursor: pointer">${channel_name}</li>`);
+                });
+            }
+        });
+
+        function guid() {
+            function s4() {
+                return Math.floor((1 + Math.random()) * 0x10000)
+                    .toString(16)
+                    .substring(1);
+            }
+
+            return s4() + s4() + s4() + s4() + s4() + s4() + s4() + s4();
+        }
+
+        function set_channel_info() {
+            let channel = {
+                'channel_id': document.getElementById('channel_id_txt').value,
+                'language_id': language_id,
+                'server': server,
+                'server_text': server_text,
+                'device_type': document.getElementById('device_type_txt').value
+            };
+            localStorage.setItem('channel', JSON.stringify(channel));
+
+            const channel_name = document.getElementById('channel_name_txt').value;
+            if (channel_name) {
+                const channel_id_gen = '47394dfba0126350946b39a5ab290e65'; //guid();
+                document.getElementById("channel_id_txt").value = channel_id_gen;
+                channel_id = channel_id_gen;
+                const token = "VSN eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InF1b2N0dWFuQGR6b25lcy52biIsInVzZXJfaWQiOiI0QTA4NDYzOEY3REI5Q0M5OTdCMjYyMzIyRDgwQjExMyIsImV4cCI6MTUzNzkzMDMxOCwiZW1haWwiOiJxdW9jdHVhbkBkem9uZXMudm4iLCJjaGFubmVsX2lkIjoiNDEyMkI1RDkwRTg0REVEMjgxQjY3MDUzOTE2NEFDRTUiLCJkZXZpY2VfdHlwZSI6IldlYiIsIm9yaWdfaWF0IjoxNTMwMTU0MzE4LCJpZCI6MTcxNCwiZGV2aWNlX2lkIjoiV2ViIn0.ssqpEGysGM5HBnoKFJYf3Y78fQJZgmOPJLywqCFAEjk";
+                socket.emit("channel_info", {'name': channel_name, 'id': channel_id_gen, 'socket_id': socket_id, 'token': token});
+                channel_private_channel = socket.subscribe(channel_id_gen);
+                individual_channel = socket.subscribe(channel_id_gen + "_individual");
+                channel_private_channel.watch(function (data) {
+                    if (data) {
+                        let list_channels = chat_private_channel.client.channels;
+                        if (!list_channels.hasOwnProperty(data)) {
+                            key_connected = data;
+                            chat_private_channel = socket.subscribe(data);
+                            chat_private_channel.watch(function (chat_data) {
+                                if (chat_data) {
+                                    bind_messages(chat_data);
+                                }
+                            });
+                            individual_channel.watch(function (chat_data) {
+                                if (chat_data) {
+                                    bind_messages(chat_data);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        function set_server() {
+            localStorage.setItem('server', server);
+        }
+
+        function get_selected_item(el) {
+            let e = document.getElementById(el);
+            let strSel = "The Value is: " + e.options[e.selectedIndex].value + " and text is: " + e.options[e.selectedIndex].text;
+            if (el === 'language') {
+                language_id = e.options[e.selectedIndex].value;
+            } else {
+                server = e.options[e.selectedIndex].value;
+                server_text = e.options[e.selectedIndex].text;
+            }
+            set_channel_info();
+            set_server();
+            window.location.reload();
+        }
+
+        function send_message() {
+            let message = document.getElementById('message').value;
+            let channel_id_li = $('#message_content').attr('user_id');
+            if (message) {
+                data = {
+                    'private_channel': key_connected,
+                    'message': message,
+                    'user_info': {
+                        'user_id': channel_id,
+                        'user_name': document.getElementById('channel_name_txt').value
+                    }
+                };
+                socket.emit('chat', data);
+            }
+            document.getElementById('message').value = "";
+        }
+
+        function bind_messages(chat_data, is_direct = false) {
+            let chat_ele = $('#chat-form');
+            if (!chat_ele.is(":visible")) {
+                chat_ele.show();
+            }
+            if (is_direct) {
+                $('#message_content').append(chat_data + "\n");
+            } else {
+                $.each(chat_data, function (index, value) {
+                    $('#message_content').append(value.user_info.user_name + ": " + value.content + "\n");
+                });
+            }
+        }
+    </script>
+    <script src="node_modules/socketcluster-client/socketcluster.js"></script>
+</head>
+<style>
+    body {
+        font-family: 'Open Sans', sans-serif;
+        background: #ededed;
+    }
+
+    input[type=text] {
+        padding: 12px 20px;
+        margin: 8px 0;
+        display: inline-block;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        width: 300px;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        font-size: 14px;
+    }
+
+    .button {
+        background-color: #5c9cd8;
+        border: none;
+        color: white;
+        padding: 11px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    #heading h1, h2 {
+        display: inline;
+    }
+
+    #language, #server {
+        background-color: #5c9cd8;
+        color: white;
+        font-size: 16px;
+        padding: 0px 29px 0px;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        box-sizing: border-box;
+        border: none;
+        min-height: 40px;
+        margin: 0;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    option:not(:checked) {
+        color: black;
+    }
+
+    #server {
+        margin-right: 10px;
+    }
+
+    .headerdivider {
+        border-left: 1px solid #e0e0e0;
+        background: #e0e0e0;
+        width: 1px;
+        height: 600px;
+        position: absolute;
+        right: 773px;
+        top: 163px;
+    }
+
+    /* Let's get this party started */
+    ::-webkit-scrollbar {
+        width: 3px;
+    }
+
+    /* Track */
+    ::-webkit-scrollbar-track {
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+    }
+
+    /* Handle */
+    ::-webkit-scrollbar-thumb {
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+        background: #fff;
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb:window-inactive {
+        background: #fff;
+    }
+
+    #listuser li {
+        opacity: 0.6;
+        transition: 0.3s;
+    }
+
+    #listuser li:hover {
+        opacity: 1;
+    }
+</style>
+
+<body>
+<select id="server" onchange="get_selected_item('server')" style="display: none">
+    <option value="ws://127.0.0.1:3000">Local</option>
+    <option value="ws://qa-services-live-feed.dtube.vn:3000">QA</option>
+    <option value="ws://staging-services-live-feed.dtube.vn:3000">Staging</option>
+    <option value="wss://services-live-feed.dtube.vn">Production</option>
+</select>
+<h1 style="display: inline-block;">Test SocketIO Chat Server</h1>
+<h1 id="server-name" style="display: none;color: darkgoldenrod"></h1>
+<h1 id="channel_id" style="display: inline-block;color: mediumslateblue"></h1>
+<div style="clear: both;"/>
+<input type="text" id="channel_name_txt" placeholder="Channel name"/>
+<input type="text" id="channel_id_txt" placeholder="Channel_id"/>
+<input type="text" id="device_type_txt" style="display: none"/>
+<button type="button" class="button" id="set_channel" onclick="set_channel_info();">Set
+</button>
+<select id="language" onchange="get_selected_item('language')" style="display: none">
+    <option value="00000008000000000000000000000001">VN</option>
+    <option value="00000008000000000000000000000002">US</option>
+</select>
+<br>
+<br>
+<span id="connected"></span>
+<br>
+<br>
+<div style="width:49.5%;float:right;overflow-y:auto;height: 580px;">
+    <div style="padding-left: 10px">
+        <div id="chat-form">
+            <textarea id="message_content" cols="80" rows="20" disabled></textarea><br>
+            <input type="text" id="message" placeholder="Enter message"/>
+            <button type="button" class="button" id="btn_message" onclick="send_message();">Enter</button>
+        </div>
+        <span id="data"></span>
+        <span id="error"></span>
+    </div>
+</div>
+<!--<div class="headerDivider"></div>-->
+<div style="width:49.5%;float:left;overflow-y:auto;height: 580px;">
+    <p> Online Users:</p>
+    <ul id="listuser"></ul>
+    <span id="status"></span>
+</div>
+</body>
+
+</html>
